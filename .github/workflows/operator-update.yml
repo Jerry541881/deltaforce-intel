@@ -1,0 +1,28 @@
+name: Operator Analysis Quarterly Update
+
+on:
+  schedule:
+    # 每3个月 1号 UTC 0:00 运行
+    - cron: '0 0 1 1,4,7,10 *'
+  workflow_dispatch:
+
+jobs:
+  update-operators:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4 lxml openai python-dotenv
+
+      - name: Run operator analysis
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: python scripts/operator_analysis.py

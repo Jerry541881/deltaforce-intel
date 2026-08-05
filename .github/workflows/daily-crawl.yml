@@ -1,0 +1,78 @@
+name: Daily Crawl & Update
+
+on:
+  schedule:
+    # 每天 UTC 22:00 = 北京时间 06:00
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+jobs:
+  crawl-weapon-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          pip install requests beautifulsoup4 lxml openai python-dotenv
+
+      - name: Run B站 crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: python scripts/crawler_bilibili.py
+
+      - name: Run short-video crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: python scripts/crawler_shortvideo.py
+
+  crawl-daily-code:
+    runs-on: ubuntu-latest
+    needs: crawl-weapon-builds
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4 lxml openai python-dotenv
+
+      - name: Run daily code crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: python scripts/daily_code_crawler.py
+
+  crawl-routes:
+    runs-on: ubuntu-latest
+    needs: crawl-weapon-builds
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4 lxml openai python-dotenv
+
+      - name: Run route crawler
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+        run: python scripts/crawler_bilibili.py --type route
