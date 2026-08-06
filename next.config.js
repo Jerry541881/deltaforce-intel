@@ -1,18 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  output: 'export', // 告诉 Next.js 要生成静态网站
+  basePath: '/deltaforce-intel', // 👈 重点！这就是我们的“地图”，告诉它包裹在哪个子文件夹里
+  assetPrefix: '/deltaforce-intel/', // 👈 重点！配合上面的设置，确保图片和样式表也能正确加载
+  trailingSlash: true,
   images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**' }
-    ]
+    unoptimized: true,
   },
-  // 允许从环境变量读取 Supabase 配置
-  env: {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  },
-  // 输出模式（Cloudflare Pages 兼容）
-  output: 'standalone',
-};
+}
 
-module.exports = nextConfig;
+module.exports = nextConfig
