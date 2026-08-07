@@ -5,21 +5,18 @@ on:
   schedule:
     - cron: '0 2 * * *'
 
-# ★ 关键：全局超时 15 分钟，不再 6 分钟被杀
-timeout-minutes: 15
-
 jobs:
   update-code:
     runs-on: ubuntu-latest
-    timeout-minutes: 12   # 单个 job 超时
+    timeout-minutes: 15   # ✅ 写在 job 下面，不是全局
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        timeout-minutes: 2   # ★ 单独给 checkout 设超时
+        timeout-minutes: 2
 
       - name: Setup Python
-        uses: setup-python@v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
         timeout-minutes: 3
@@ -27,11 +24,11 @@ jobs:
       - name: Install deps
         run: |
           pip install --no-cache-dir requests beautifulsoup4
-        timeout-minutes: 3   # ★ pip 单独超时
+        timeout-minutes: 3
 
       - name: Crawl daily code
         run: python scripts/daily_code_crawler.py
-        timeout-minutes: 3   # ★ 爬虫本身最多跑 3 分钟
+        timeout-minutes: 5
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
