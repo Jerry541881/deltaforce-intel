@@ -1,49 +1,48 @@
-#!/usr/bin/env python3
 """
-每日密码爬虫 - 修正版
-✅ 使用 SUPABASE_SERVICE_ROLE_KEY
-✅ 写库失败会明确报错
+每日密码爬虫 - 极简版
+B站搜不到就安静退出，等管理员手动加
 """
 
-import os
-import re
-import signal
-import requests
+import os, re, json, signal, requests
 from datetime import date
 from urllib.parse import quote
 
-# ============ 超时保护 ============
 signal.signal(signal.SIGALRM, lambda s, f: os._exit(0))
 signal.alarm(120)
 
-# ============ 配置（重点：读 service_role key）============
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Referer": "https://www.bilibili.com"
 }
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")  # ✅ 关键修正
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
-# ============ HTTP 请求 ============
 def fetch(url):
     try:
         r = requests.get(url, headers=HEADERS, timeout=8)
         r.raise_for_status()
         return r.text
-    except Exception as e:
-        print(f"⚠️ 请求失败: {e}")
+    except:
         return ""
 
-# ============ B站搜今日密码 ============
-def crawl_bilibili_today(today_str):
-    html = fetch(f"https://search.bilibili.com/all?keyword={quote('三角洲行动今日密码')}")
+def crawl_bilibili_today(today):
+    html = fetch(f"https://search.bilibili.com/all?keyword={quote('三角洲行动 今日密码')}")
     if not html:
         return None
-    m = re.search(r'(今天|今日).{0,15}?(\d{4})', html)
+
+    bvs = re.findall(r'/video/(BV\w+)', html)
+    if not bvs:
+        return None
+
+    url = f"https://www.bilibili.com/video/{bvs[0]}"
+    page = fetch(url)
+    if not page:
+        return None
+
+    m = re.search(r'(今天|今日).{0,15}?(\d{4})', page)
     return m.group(2) if m else None
 
-# ============ 写 Supabase ============
 def write_to_supabase(code, today_str):
     if not SUPABASE_URL:
         print("❌ SUPABASE_URL 未配置")
@@ -79,7 +78,6 @@ def write_to_supabase(code, today_str):
     except Exception as e:
         print(f"⚠️ 写库异常: {e}")
 
-# ============ 主流程 ============
 def crawl():
     today = date.today().strftime("%Y-%m-%d")
     print(f"🗓️ 采集 {today} 每日密码")
