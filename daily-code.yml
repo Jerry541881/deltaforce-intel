@@ -1,0 +1,38 @@
+name: Daily Code Update (Zhipu AI)
+
+"on":
+  schedule:
+    # 北京时间 12:00 和 18:00 → UTC 4:00 和 10:00
+    - cron: "0 4,10 * * *"
+  workflow_dispatch:
+
+jobs:
+  crawl-daily-code:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Zhipu AI daily code crawler
+        env:
+          ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/daily_code_crawler.py
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "⚠️ 智谱AI爬虫失败，可能需要检查:"
+          echo "  1. ZHIPU_API_KEY 是否有效/有余额"
+          echo "  2. SUPABASE_SERVICE_ROLE_KEY 是否配置"
+          echo "  3. 手动在 Supabase 添加今日密码"
