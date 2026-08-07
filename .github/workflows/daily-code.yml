@@ -1,28 +1,38 @@
 name: Daily Code Update
 
 on:
-  schedule:
-    - cron: '0 22 * * *'   # 北京时间 06:00
-    - cron: '0 10 * * *'   # 北京时间 18:00 二次确认
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+# ★ 关键：全局超时 15 分钟，不再 6 分钟被杀
+timeout-minutes: 15
 
 jobs:
   update-code:
     runs-on: ubuntu-latest
+    timeout-minutes: 12   # 单个 job 超时
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        timeout-minutes: 2   # ★ 单独给 checkout 设超时
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: setup-python@v5
         with:
           python-version: '3.11'
+        timeout-minutes: 3
 
       - name: Install deps
-        run: pip install requests beautifulsoup4 lxml openai supabase
+        run: |
+          pip install --no-cache-dir requests beautifulsoup4
+        timeout-minutes: 3   # ★ pip 单独超时
 
       - name: Crawl daily code
+        run: python scripts/daily_code_crawler.py
+        timeout-minutes: 3   # ★ 爬虫本身最多跑 3 分钟
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
-        run: python scripts/daily_code_crawler.py

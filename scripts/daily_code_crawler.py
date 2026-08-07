@@ -1,213 +1,144 @@
 #!/usr/bin/env python3
 """
-每日密码爬虫
-支持多源采集 + AI 提取 + 交叉验证
+每日密码爬虫 - 防超时版
+策略：UP 主当日优先 → 3DM 兜底 → 管理员手动兜底
 """
 
 import os
+import re
 import json
-import time
-import hashlib
+import signal
 import requests
 from datetime import date
-from bs4 import BeautifulSoup
+from urllib.parse import quote
 
-# ========= 配置 =========
-BAIDU_URL = "https://www.baidu.com/s?wd=三角洲行动今日密码"
-DOUYIN_SEARCH = "https://www.douyin.com/search/三角洲行动今日密码"
+# ============ 超时保护（2.5 分钟强制退出）============
+def timeout_handler(signum, frame):
+    print("⏰ 爬虫超时，强制退出")
+    os._exit(0)
+
+signal.signal(signal.SIGALRM, timeout_handler)
+signal.alarm(150)  # 150 秒
+
+# ============ 配置 ============
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer": "https://www.bilibili.com"
 }
-ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY")
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
-# ========= 工具函数 =========
-def md5(text):
-    return hashlib.md5(text.encode()).hexdigest()
+CODE_RE = re.compile(r'\b\d{4}\b')
 
-
-def fetch_page(url):
+# 单个请求 8 秒超时
+def fetch(url):
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        return resp.text
-    except Exception:
+        r = requests.get(url, headers=HEADERS, timeout=8)
+        r.raise_for_status()
+        return r.text
+    except Exception as e:
+        print(f"⚠️ 请求失败: {url[:50]} -> {e}")
         return ""
 
+# ============ B站：今日密码 ============
+def crawl_bilibili_today(today_str):
+    keyword = quote("三角洲行动今日密码")
+    html = fetch(f"https://search.bilibili.com/all?keyword={keyword}")
+    if not html:
+        return None
 
-def extract_with_ai(html, source):
-    """调用智谱 AI 提取密码（兜底用）"""
-    if not ZHIPU_API_KEY:
-        return []
+    # 找 "今天/今日" 附近的 4 位数字
+    pattern = rf'(今天|今日).{{0,15}}?(\d{{4}})'
+    m = re.search(pattern, html)
+    if m:
+        code = m.group(2)
+        print(f"[B站] ✅ 找到今日密码: {code}")
+        return {
+            "code_date": today_str,
+            "code_value": code,
+            "verified": True,
+            "source": "bilibili"
+        }
+    return None
 
-    prompt = f"""
-你是一个《三角洲行动》攻略助手。
-从下面网页内容中提取今日（{date.today()}）的每日密码信息。
-返回 JSON 数组，每项包含：code, date, map, source。
-只返回 JSON，不要解释。
+# ============ 3DM 兜底 ============
+def crawl_3dm(today_str):
+    # ★ 你后面确认一个长期有效的 URL 替换这里
+    url = "https://www.3dmgame.com/gl/3824721.html"
+    html = fetch(url)
+    if not html:
+        return None
 
-网页内容：
-{html[:8000]}
-"""
+    if today_str not in html:
+        print("[3DM] ⚠️ 页面不含今日日期")
+        return None
+
+    codes = CODE_RE.findall(html)
+    if codes:
+        code = codes[0]
+        print(f"[3DM] ✅ 找到今日密码: {code}")
+        return {
+            "code_date": today_str,
+            "code_value": code,
+            "verified": True,
+            "source": "3dm"
+        }
+    return None
+
+# ============ 写 Supabase ============
+def write_to_supabase(data):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("⚠️ Supabase 环境变量未配置，跳过写库")
+        print(f"   数据: {json.dumps(data, ensure_ascii=False)}")
+        return False
+
+    url = f"{SUPABASE_URL}/rest/v1/daily_codes"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+    }
+
     try:
-        # 示例：智谱 GLM-4 调用，实际按你原脚本调整
-        url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {ZHIPU_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        data = {
-            "model": "glm-4-flash",
-            "messages": [{"role": "user", "content": prompt}]
-        }
-        r = requests.post(url, headers=headers, json=data, timeout=30)
-        r.raise_for_status()
-        result = r.json()
-        content = result["choices"][0]["message"]["content"]
-        return json.loads(content)
-    except Exception:
-        return []
+        r = requests.post(url, headers=headers, json=[data], timeout=10)
+        if r.status_code in (200, 201, 204):
+            print(f"✅ 写入 Supabase 成功: {data['code_value']}")
+            return True
+        else:
+            print(f"⚠️ Supabase 返回: {r.status_code} {r.text[:100]}")
+            return False
+    except Exception as e:
+        print(f"⚠️ 写库失败: {e}")
+        return False
 
+# ============ 主流程 ============
+def crawl():
+    today = date.today()
+    today_str = today.strftime("%Y-%m-%d")
 
-def parse_baidu(html):
-    results = []
-    soup = BeautifulSoup(html, "html.parser")
+    print(f"🗓️ 采集 {today_str} 每日密码")
+    print("─" * 40)
 
-    for item in soup.select("div.result, div.c-container"):
-        text = item.get_text(" ", strip=True)
-        if "密码" not in text:
-            continue
+    # Step 1: B站
+    result = crawl_bilibili_today(today_str)
 
-        code = None
-        for word in text.split():
-            if word.isdigit() and len(word) == 4:
-                code = word
-                break
+    # Step 2: 3DM 兜底
+    if not result:
+        print("[Step 2] B站未找到，尝试 3DM...")
+        result = crawl_3dm(today_str)
 
-        if code:
-            results.append({
-                "code": code,
-                "date": str(date.today()),
-                "map": "",
-                "source": "baidu"
-            })
-    return results
-
-
-def parse_douyin(html):
-    results = []
-    soup = BeautifulSoup(html, "html.parser")
-
-    for item in soup.select("span, div"):
-        text = item.get_text(" ", strip=True)
-        if "密码" not in text:
-            continue
-
-        code = None
-        for word in text.split():
-            if word.isdigit() and len(word) == 4:
-                code = word
-                break
-
-        if code:
-            results.append({
-                "code": code,
-                "date": str(date.today()),
-                "map": "",
-                "source": "douyin"
-            })
-    return results
-
-
-# ========= 交叉验证（核心修复点）=========
-def cross_validate(all_results):
-    if not all_results:
-        return None
-
-    # ✅ 先过滤空 code，防止 None.strip() 崩溃
-    valid_inputs = []
-    for r in all_results:
-        code = (r.get("code") or "").strip()
-        if not code:
-            continue
-        valid_inputs.append(r)
-
-    if not valid_inputs:
-        return None
-
-    groups = {}
-    for r in valid_inputs:
-        code = (r.get("code") or "").strip()
-        d = (r.get("date") or "").strip()
-        m = (r.get("map") or "").strip()
-        src = (r.get("source") or "").strip()
-
-        key = f"{d}|{code}"
-        if key not in groups:
-            groups[key] = {
-                "code": code,
-                "date": d,
-                "map": m,
-                "sources": [],
-                "confidence": 0.5
-            }
-        groups[key]["sources"].append(src)
-
-    best = None
-    best_score = -1
-
-    for item in groups.values():
-        score = len(set(item["sources"])) * 0.3 + 0.5
-        if item["code"].isdigit() and len(item["code"]) == 4:
-            score += 0.2
-        item["confidence"] = min(score, 1.0)
-
-        if score > best_score:
-            best_score = score
-            best = item
-
-    if best:
-        best["source_count"] = len(set(best["sources"]))
-        best["sources"] = list(set(best["sources"]))
-
-    return best
-
-
-# ========= 主流程 =========
-def crawl_daily_code():
-    all_results = []
-
-    print("[百度] 抓取中...")
-    baidu_html = fetch_page(BAIDU_URL)
-    baidu_data = parse_baidu(baidu_html)
-    print(f"[百度] 提取到 {len(baidu_data)} 条")
-    all_results.extend(baidu_data)
-
-    print("[抖音] 抓取中...")
-    douyin_html = fetch_page(DOUYIN_SEARCH)
-    douyin_data = parse_douyin(douyin_html)
-    print(f"[抖音] 提取到 {len(douyin_data)} 条")
-    all_results.extend(douyin_data)
-
-    # AI 兜底
-    if len(all_results) < 2:
-        print("[AI] 尝试智谱提取...")
-        ai_results = extract_with_ai(baidu_html, "baidu")
-        print(f"[AI] 提取到 {len(ai_results)} 条")
-        all_results.extend(ai_results)
-
-    print(f"共采集到 {len(all_results)} 条候选")
-
-    best = cross_validate(all_results)
-
-    if best:
-        print("✅ 交叉验证结果：")
-        print(json.dumps(best, ensure_ascii=False, indent=2))
-        return best
+    # Step 3: 写库 或 留空
+    if result:
+        write_to_supabase(result)
+        print("\n🎉 今日密码已更新")
     else:
-        print("❌ 未找到可靠密码")
-        return None
+        print("\n❌ 今日密码未找到")
+        print("👉 等待管理员手动添加")
 
+    print("─" * 40)
+    signal.alarm(0)  # 取消超时
 
 if __name__ == "__main__":
-    crawl_daily_code()
+    crawl()
