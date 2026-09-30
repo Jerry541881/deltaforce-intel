@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-每日密码爬虫 - 智谱AI免费版（glm-4-7 + Web Search）
-✅ 只用免费资源包覆盖的模型
-✅ 只跑一次 Web Search，省额度
-✅ Key 从环境变量读，不硬编码
+每日密码爬虫 - 智谱AI（Key内置版）
+✅ Key 直接写死，不依赖 GitHub Secret
+✅ 只跑 Web Search，省额度
 """
 
 import os
@@ -16,13 +15,11 @@ from datetime import date
 signal.signal(signal.SIGALRM, lambda s, f: os._exit(0))
 signal.alarm(120)
 
-# ============ 配置（只从环境变量读）============
-ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY", "")
+# ============ Key 直接内置 ============
+ZHIPU_API_KEY = "a00b1314dd0a44c2bc522ac456bd6a22.GeFEMhnVCNQNJoju"
+
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-
-# ⚠️ 这就是你免费资源包支持的模型
-MODEL = "glm-4-7"
 
 HEADERS = {
     "Authorization": f"Bearer {ZHIPU_API_KEY}",
@@ -32,12 +29,8 @@ HEADERS = {
 # ============ 六张地图 ============
 MAPS = ["零号大坝", "长弓溪谷", "巴克什", "航天基地", "潮汐监狱", "AZ3核电站"]
 
-# ============ 智谱 Web Search（最省，走 search_pro）============
+# ============ 智谱 Web Search ============
 def zhipu_web_search(query):
-    if not ZHIPU_API_KEY:
-        print("  ⚠️ ZHIPU_API_KEY 为空")
-        return []
-
     url = "https://open.bigmodel.cn/api/paas/v4/web_search"
     data = {
         "search_engine": "search_pro",
@@ -45,20 +38,19 @@ def zhipu_web_search(query):
         "search_intent": "on",
         "count": 15
     }
-
     try:
         r = requests.post(url, headers=HEADERS, json=data, timeout=15)
         if r.status_code != 200:
-            print(f"  ⚠️ Web Search HTTP {r.status_code}: {r.text[:200]}")
+            print(f"  ⚠️ HTTP {r.status_code}: {r.text[:200]}")
             return []
         resp = r.json()
         return resp.get("search_result", resp.get("data", []))
     except Exception as e:
-        print(f"  ⚠️ Web Search 异常: {e}")
+        print(f"  ⚠️ 异常: {e}")
         return []
 
 # ============ 提取密码 ============
-def extract_codes_from_text(text):
+def extract_codes(text):
     results = {}
     if not text:
         return results
@@ -74,14 +66,14 @@ def extract_codes_from_text(text):
                 break
     return results
 
-def extract_from_search_results(results):
+def extract_from_results(results):
     text = ""
     for item in results:
         if isinstance(item, dict):
             text += item.get("content", "") + "\n"
             text += item.get("snippet", "") + "\n"
             text += item.get("title", "") + "\n"
-    return extract_codes_from_text(text)
+    return extract_codes(text)
 
 # ============ 写 Supabase ============
 def write_to_supabase(results, today_str):
@@ -101,9 +93,8 @@ def write_to_supabase(results, today_str):
         "code_date": today_str,
         "code_value": code_str,
         "verified": True,
-        "source": "zhipu-glm4-7"
+        "source": "zhipu"
     }]
-
     try:
         r = requests.post(url, headers=headers, json=data, timeout=10)
         if r.status_code in (200, 201, 204):
@@ -121,30 +112,31 @@ def crawl():
     today_str = today.strftime("%Y-%m-%d")
     mmdd = today.strftime("%m%d")
 
-    print(f"🗓️ 采集 {today_str} 每日密码（智谱 {MODEL} 免费版）")
-    print(f"🔑 Key: {'✅ 已加载' if ZHIPU_API_KEY else '❌ 缺失'}")
+    print(f"🗓️ 采集 {today_str} 每日密码")
+    print(f"🔑 Key: {'✅ 已内置' if ZHIPU_API_KEY else '❌ 缺失'}")
     print("─" * 50)
 
-    # 只跑一次 Web Search，省额度
     query = f"三角洲行动 {mmdd} 今日密码 零号大坝 长弓溪谷 巴克什 航天基地 潮汐监狱 AZ3核电站"
     print(f"\n📡 Web Search: {query}")
-    results_raw = zhipu_web_search(query)
+    raw = zhipu_web_search(query)
 
     results = {}
-    if results_raw:
-        print(f"  📄 {len(results_raw)} 条结果")
-        results = extract_from_search_results(results_raw)
+    if raw:
+        print(f"  📄 {len(raw)} 条结果")
+        results = extract_from_results(raw)
         print(f"  ✅ 提取 {len(results)}/6")
         for k, v in results.items():
             print(f"     {k}: {v}")
     else:
         print("  ⚠️ 无结果")
 
-    # 写库
     print("\n" + "─" * 50)
     if len(results) >= 4:
         ok = write_to_supabase(results, today_str)
         print(f"🎉 {today_str} 完成 ({len(results)}/6)" if ok else "⚠️ 爬到但写库失败")
+        if not ok:
+            for k, v in results.items():
+                print(f"   {k}: {v}")
     else:
         print(f"❌ 仅 {len(results)}/6，请在 Supabase 手动添加")
 
