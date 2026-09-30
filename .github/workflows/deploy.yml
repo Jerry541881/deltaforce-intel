@@ -36,7 +36,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           wrangler pages deploy out \
-            --project-name=twilight-tree-b751 \
+            --project-name=${{ secrets.CLOUDFLARE_PAGES_PROJECT }} \
             --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
