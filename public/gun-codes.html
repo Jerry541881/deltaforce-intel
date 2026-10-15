@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>改枪码库 · 三角洲情报站</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    color: #e6edf3; min-height: 100vh; padding: 40px 20px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 6px; letter-spacing: 2px; }
+  .sub { color: #7d8590; font-size: 14px; margin-bottom: 24px; line-height: 1.7; }
+  .back { display:inline-block; margin-bottom:18px; color:#58a6ff; font-size:14px; text-decoration:none; }
+  .back:hover { text-decoration:underline; }
+
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+  #search {
+    flex: 1 1 260px; background:#0d1117; border:1px solid #30363d; border-radius:8px;
+    color:#e6edf3; padding:11px 14px; font-size:14px; outline:none;
+  }
+  #search:focus { border-color:#2ea043; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tab {
+    background:#21262d; border:1px solid #30363d; color:#7d8590; border-radius:20px;
+    padding:7px 15px; font-size:13px; cursor:pointer; transition:.15s; user-select:none;
+  }
+  .tab:hover { color:#e6edf3; border-color:#58a6ff; }
+  .tab.on { background:#2ea043; border-color:#2ea043; color:#fff; font-weight:bold; }
+
+  .stat {
+    background:#21262d; border-left:4px solid #58a6ff; padding:10px 16px; border-radius:6px;
+    font-size:13px; color:#7d8590; margin-bottom:20px; display:flex; gap:18px; flex-wrap:wrap;
+  }
+  .stat b { color:#58a6ff; }
+
+  .gun {
+    background:#161b22; border:1px solid #30363d; border-radius:10px;
+    padding:18px 20px; margin-bottom:16px;
+  }
+  .gun-head { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .gun-name { font-size:19px; font-weight:bold; letter-spacing:1px; }
+  .tag {
+    font-size:11px; padding:3px 9px; border-radius:12px; background:#21262d;
+    color:#7d8590; border:1px solid #30363d;
+  }
+  .tag.type { color:#58a6ff; border-color:#1f6feb; }
+  .tag.n { color:#2ea043; border-color:#2ea043; }
+
+  .row {
+    display:flex; align-items:center; gap:14px; padding:11px 0;
+    border-top:1px dashed #21262d; flex-wrap:wrap;
+  }
+  .row:first-child { border-top:none; }
+  .rname { flex:1 1 180px; font-size:14px; color:#c9d1d9; min-width:150px; }
+  .rcode {
+    font-family:"Consolas",monospace; font-size:16px; color:#2ea043;
+    background:#0d1117; border:1px solid #30363d; border-radius:6px;
+    padding:6px 12px; letter-spacing:1px; word-break:break-all; flex:0 1 auto;
+  }
+  .rmeta { font-size:12px; color:#7d8590; }
+  .copy {
+    background:#21262d; border:1px solid #30363d; color:#7d8590; border-radius:6px;
+    padding:6px 12px; font-size:12px; cursor:pointer; transition:.15s; white-space:nowrap;
+  }
+  .copy:hover { color:#fff; border-color:#2ea043; background:#2ea043; }
+  .copy.ok { background:#2ea043; color:#fff; border-color:#2ea043; }
+
+  .state { text-align:center; padding:60px 20px; color:#7d8590; }
+  .state.error { color:#f85149; }
+  .spin {
+    display:inline-block; width:20px; height:20px; border:2px solid #30363d;
+    border-top-color:#2ea043; border-radius:50%; animation:r .8s linear infinite;
+    vertical-align:middle; margin-right:8px;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+  footer { margin-top:36px; text-align:center; color:#484f58; font-size:12px; line-height:1.9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 返回首页</a>
+  <h1>改枪码库</h1>
+  <div class="sub">
+    《三角洲行动》全枪械改枪码 · 一键复制，游戏内「枪械改装 → 导入方案」粘贴即可<br>
+    当前收录以<b style="color:#2ea043">烽火地带</b>为主，导入前建议在训练场实测
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="搜索枪名 / 流派 / 改枪码，如 M4A1、腰射">
+    <div class="tabs" id="tabs"></div>
+  </div>
+
+  <div class="stat" id="stat" style="display:none"></div>
+  <div id="state" class="state"><span class="spin"></span>正在读取改枪码库…</div>
+  <div id="list"></div>
+
+  <footer>
+    数据来源：17173 / 游民星空 / 游侠网 / 九游 / 18183 等公开攻略<br>
+    改枪码随赛季与配件价格变动可能失效，仅供参考
+  </footer>
+</div>
+
+<script>
+const URL = 'https://oiwrcxuhanvpyxehgimr.supabase.co';
+const KEY = 'sb_publishable_Rw3Awn_bOYKfgZJ6DTToVQ_Yk9SLfXp';
+
+let ALL = [];
+let curType = '全部';
+
+function esc(s){
+  return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function copyCode(btn, code){
+  const done = () => {
+    const t = btn.textContent;
+    btn.textContent = '已复制'; btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = t; btn.classList.remove('ok'); }, 1200);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(code).then(done).catch(fallback);
+  } else fallback();
+  function fallback(){
+    const ta = document.createElement('textarea');
+    ta.value = code; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e){ alert('复制失败，请手动选中：' + code); }
+    document.body.removeChild(ta);
+  }
+}
+
+function render(){
+  const kw = document.getElementById('search').value.trim().toLowerCase();
+  const guns = {};
+  const seen = {};
+
+  ALL.forEach(r => {
+    const key = (r.gun_name||'') + '||' + (r.share_code||'');
+    if (seen[key]) return;
+    seen[key] = 1;
+    if (curType !== '全部' && (r.gun_type || '其他') !== curType) return;
+    if (kw) {
+      const hay = ((r.gun_name||'') + ' ' + (r.build_name||'') + ' ' + (r.share_code||'') + ' ' + (r.gun_type||'')).toLowerCase();
+      if (hay.indexOf(kw) === -1) return;
+    }
+    const g = r.gun_name || '未知';
+    (guns[g] = guns[g] || []).push(r);
+  });
+
+  const names = Object.keys(guns).sort();
+  const total = names.reduce((s,n) => s + guns[n].length, 0);
+
+  const st = document.getElementById('stat');
+  st.style.display = 'flex';
+  st.innerHTML = '<span>共 <b>' + names.length + '</b> 把枪</span>'
+    + '<span><b>' + total + '</b> 条改枪码</span>'
+    + '<span>当前分类：<b>' + esc(curType) + '</b></span>';
+
+  const list = document.getElementById('list');
+  if (!names.length) {
+    list.innerHTML = '<div class="state">没有匹配的改枪码，换个关键词试试</div>';
+    return;
+  }
+
+  list.innerHTML = names.map(n => {
+    const rows = guns[n];
+    const type = rows[0].gun_type || '其他';
+    return '<div class="gun">'
+      + '<div class="gun-head">'
+      +   '<span class="gun-name">' + esc(n) + '</span>'
+      +   '<span class="tag type">' + esc(type) + '</span>'
+      +   '<span class="tag n">' + rows.length + ' 套方案</span>'
+      + '</div>'
+      + rows.map(r =>
+          '<div class="row">'
+          + '<span class="rname">' + esc(r.build_name || '改装方案') + '</span>'
+          + '<span class="rcode">' + esc(r.share_code) + '</span>'
+          + '<span class="rmeta">' + esc(r.mode || '') + (r.season ? ' · ' + esc(r.season) : '') + '</span>'
+          + '<button class="copy" data-c="' + esc(r.share_code) + '">复制</button>'
+          + '</div>'
+        ).join('')
+      + '</div>';
+  }).join('');
+
+  list.querySelectorAll('.copy').forEach(b => {
+    b.onclick = () => copyCode(b, b.getAttribute('data-c'));
+  });
+}
+
+function buildTabs(){
+  const types = ['全部'];
+  ALL.forEach(r => {
+    const t = r.gun_type || '其他';
+    if (types.indexOf(t) === -1) types.push(t);
+  });
+  const box = document.getElementById('tabs');
+  box.innerHTML = types.map(t =>
+    '<span class="tab' + (t === curType ? ' on' : '') + '" data-t="' + esc(t) + '">' + esc(t) + '</span>'
+  ).join('');
+  box.querySelectorAll('.tab').forEach(el => {
+    el.onclick = () => { curType = el.getAttribute('data-t'); buildTabs(); render(); };
+  });
+}
+
+(async function(){
+  try {
+    const res = await fetch(URL + '/rest/v1/gun_codes?select=*&order=gun_name.asc', {
+      headers: { apikey: KEY, Authorization: 'Bearer ' + KEY },
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    ALL = await res.json();
+    if (!ALL.length) {
+      document.getElementById('state').innerHTML = '暂无改枪码数据';
+      return;
+    }
+    document.getElementById('state').style.display = 'none';
+    buildTabs();
+    render();
+  } catch(e) {
+    document.getElementById('state').className = 'state error';
+    document.getElementById('state').textContent = '读取失败：' + e.message;
+  }
+})();
+
+document.getElementById('search').addEventListener('input', render);
+</script>
+</body>
+</html>
