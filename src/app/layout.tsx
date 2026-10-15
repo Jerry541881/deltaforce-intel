@@ -16,7 +16,7 @@ const navItems = [
   { href: '/', label: '首页' },
   { href: '/weapons', label: '改枪码' },
   { href: '/routes', label: '跑刀路线' },
-  { href: '/daily-code', label: '每日密码' },
+  { href: '/daily-code.html', label: '每日密码' },
   { href: '/operators', label: '干员分析' }
 ];
 
