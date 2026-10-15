@@ -5,3 +5,6 @@ node_modules/
 .next/
 out/.cache/
 .DS_Store
+scripts/supabase_config.json
+scripts/json.json
+*.env

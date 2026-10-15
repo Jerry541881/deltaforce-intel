@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日密码 · 三角洲情报站</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    color: #e6edf3; min-height: 100vh; padding: 40px 20px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 6px; letter-spacing: 2px; }
+  .sub { color: #7d8590; font-size: 14px; margin-bottom: 28px; }
+  .date-bar {
+    background: #21262d; border-left: 4px solid #2ea043;
+    padding: 12px 18px; border-radius: 6px; margin-bottom: 24px;
+    font-size: 15px; display: flex; justify-content: space-between;
+    align-items: center; flex-wrap: wrap; gap: 10px;
+  }
+  .date-bar .label { color: #7d8590; }
+  .date-bar .val { color: #2ea043; font-weight: bold; font-size: 17px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .card {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+    padding: 20px; text-align: center; transition: .2s;
+  }
+  .card:hover { border-color: #2ea043; transform: translateY(-2px); }
+  .card .map { color: #7d8590; font-size: 13px; margin-bottom: 10px; letter-spacing: 1px; }
+  .card .code {
+    font-family: "Consolas", monospace; font-size: 34px; font-weight: bold;
+    color: #2ea043; letter-spacing: 4px;
+  }
+  .state { text-align: center; padding: 60px 20px; color: #7d8590; }
+  .state.error { color: #f85149; }
+  .spin {
+    display:inline-block; width:20px; height:20px; border:2px solid #30363d;
+    border-top-color:#2ea043; border-radius:50%; animation: r .8s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+  footer { margin-top: 40px; text-align:center; color:#484f58; font-size:12px; line-height:1.8; }
+  .src { display:inline-block; background:#21262d; padding:2px 8px; border-radius:4px; color:#7d8590; }
+  .back { display:inline-block; margin-bottom:18px; color:#58a6ff; font-size:14px; text-decoration:none; }
+  .back:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 返回首页</a>
+  <h1>每日密码</h1>
+  <div class="sub">《三角洲行动》六张地图当日密码 · 数据直读 WeGame 客户端</div>
+  <div id="dateBar" class="date-bar" style="display:none">
+    <span><span class="label">数据日期：</span><span class="val" id="dateVal">-</span></span>
+    <span><span class="label">来源：</span><span class="src" id="srcVal">-</span></span>
+  </div>
+  <div id="state" class="state"><span class="spin"></span>正在读取最新密码…</div>
+  <div id="grid" class="grid"></div>
+  <footer>
+    数据每日本地自动采集并校验<br>
+    若显示异常请稍后刷新
+  </footer>
+</div>
+
+<script>
+const SUPABASE_URL = "https://oiwrcxuhanvpyxehgimr.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_Rw3Awn_bOYKfgZJ6DTToVQ_Yk9SLfXp";
+const MAPS = ["零号大坝","长弓溪谷","巴克什","航天基地","潮汐监狱","AZ3"];
+
+function parseCodeValue(v) {
+  const res = {};
+  if (!v) return res;
+  v.split("|").forEach(seg => {
+    const i = seg.indexOf(":");
+    if (i > 0) res[seg.slice(0, i).trim()] = seg.slice(i + 1).trim();
+  });
+  return res;
+}
+
+function render(row) {
+  const codes = parseCodeValue(row.code_value);
+  document.getElementById("dateBar").style.display = "flex";
+  document.getElementById("dateVal").textContent = row.code_date;
+  document.getElementById("srcVal").textContent = row.source || "wegame";
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
+  let shown = 0;
+  MAPS.forEach(m => {
+    if (!codes[m]) return;
+    shown++;
+    const d = document.createElement("div");
+    d.className = "card";
+    d.innerHTML = '<div class="map">' + m + '</div><div class="code">' + codes[m] + '</div>';
+    grid.appendChild(d);
+  });
+  const st = document.getElementById("state");
+  if (shown === 0) {
+    st.className = "state error";
+    st.textContent = "数据格式异常，未能解析出密码";
+  } else {
+    st.style.display = "none";
+  }
+}
+
+function fail(msg) {
+  const st = document.getElementById("state");
+  st.className = "state error";
+  st.innerHTML = msg;
+}
+
+(async function () {
+  try {
+    const url = SUPABASE_URL +
+      "/rest/v1/daily_codes?select=code_date,code_value,source" +
+      "&order=code_date.desc&limit=1";
+    const r = await fetch(url, {
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY }
+    });
+    if (!r.ok) { fail("读取失败，HTTP " + r.status + "<br>请检查 Key 与数据表权限"); return; }
+    const data = await r.json();
+    if (!data || data.length === 0) { fail("数据库中暂无密码数据"); return; }
+    render(data[0]);
+  } catch (e) {
+    fail("网络错误：" + e.message);
+  }
+})();
+</script>
+</body>
+</html>

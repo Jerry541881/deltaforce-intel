@@ -1,0 +1,19 @@
+{
+  "wegame_exe": "D:\\Program Files (x86)\\WeGame\\wegame.exe",
+  "game_icon": [
+    318,
+    392
+  ],
+  "code_entry": [
+    1561,
+    258
+  ],
+  "shot_region": [
+    566,
+    171,
+    1097,
+    285
+  ],
+  "wait_startup": 40,
+  "wait_click": 5
+}
