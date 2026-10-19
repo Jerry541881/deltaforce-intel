@@ -17,7 +17,7 @@ const navItems = [
   { href: '/gun-codes.html', label: '改枪码' },
   { href: '/routes', label: '跑刀路线' },
   { href: '/daily-code.html', label: '每日密码' },
-  { href: '/operators', label: '干员分析' }
+  { href: '/operators.html', label: '干员分析' }
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
