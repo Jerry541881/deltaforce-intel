@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: '/', label: '首页' },
   { href: '/gun-codes.html', label: '改枪码' },
-  { href: '/routes.html', label: '跑刀路线' },
+  { href: '/routes.html.html', label: '跑刀路线' },
   { href: '/daily-code.html', label: '每日密码' },
   { href: '/operators.html', label: '干员分析' }
 ];
