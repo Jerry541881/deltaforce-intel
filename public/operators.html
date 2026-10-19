@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>干员分析 · 三角洲情报站</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    color: #e6edf3; min-height: 100vh; padding: 40px 20px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 28px; margin-bottom: 6px; letter-spacing: 2px; }
+  .sub { color: #7d8590; font-size: 14px; margin-bottom: 24px; line-height: 1.7; }
+  .back { display:inline-block; margin-bottom:18px; color:#58a6ff; font-size:14px; text-decoration:none; }
+  .back:hover { text-decoration:underline; }
+
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+  #search {
+    flex: 1 1 260px; background:#0d1117; border:1px solid #30363d; border-radius:8px;
+    color:#e6edf3; padding:11px 14px; font-size:14px; outline:none;
+  }
+  #search:focus { border-color:#2ea043; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .tab {
+    background:#21262d; border:1px solid #30363d; color:#7d8590; border-radius:20px;
+    padding:7px 15px; font-size:13px; cursor:pointer; transition:.15s; user-select:none;
+  }
+  .tab:hover { color:#e6edf3; border-color:#58a6ff; }
+  .tab.on { background:#2ea043; border-color:#2ea043; color:#fff; font-weight:bold; }
+
+  .grp-label { font-size:12px; color:#484f58; margin:6px 0 2px; }
+
+  .stat {
+    background:#21262d; border-left:4px solid #58a6ff; padding:10px 16px; border-radius:6px;
+    font-size:13px; color:#7d8590; margin-bottom:20px; display:flex; gap:18px; flex-wrap:wrap;
+  }
+  .stat b { color:#58a6ff; }
+
+  .op {
+    background:#161b22; border:1px solid #30363d; border-radius:10px;
+    padding:18px 20px; margin-bottom:16px; transition:.15s;
+  }
+  .op:hover { border-color:#484f58; }
+  .op-head { display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
+  .op-name { font-size:20px; font-weight:bold; letter-spacing:1px; }
+  .op-real { font-size:12px; color:#484f58; }
+  .tag { font-size:11px; padding:3px 9px; border-radius:12px; background:#21262d; color:#7d8590; border:1px solid #30363d; }
+
+  .tag.role-突击 { color:#f85149; border-color:#f85149; }
+  .tag.role-支援 { color:#2ea043; border-color:#2ea043; }
+  .tag.role-工程 { color:#58a6ff; border-color:#1f6feb; }
+  .tag.role-侦察 { color:#bc8cff; border-color:#8957e5; }
+
+  .tier { font-size:12px; font-weight:bold; padding:3px 10px; border-radius:12px; }
+  .tier.T0   { background:#2ea043; color:#fff; }
+  .tier.T0p5 { background:#1f6feb; color:#fff; }
+  .tier.T1   { background:#9e6a03; color:#fff; }
+  .tier.T1p5 { background:#bb8009; color:#fff; }
+  .tier.T2   { background:#6e7681; color:#fff; }
+
+  .op-pos { font-size:13px; color:#58a6ff; margin-bottom:12px; }
+
+  .skills {
+    background:#0d1117; border:1px solid #30363d; border-radius:6px;
+    padding:10px 14px; font-size:13px; color:#c9d1d9; margin-bottom:12px; line-height:1.8;
+  }
+  .skills .k { color:#484f58; font-size:12px; display:block; margin-bottom:2px; }
+
+  .sec { font-size:13px; line-height:1.85; margin-bottom:10px; }
+  .sec .k {
+    display:inline-block; min-width:60px; color:#484f58; font-size:12px;
+    vertical-align:top;
+  }
+  .sec .v { color:#c9d1d9; }
+  .sec.good .v { color:#7ee787; }
+  .sec.bad  .v { color:#ffa198; }
+
+  .op-foot { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:#484f58; margin-top:10px; padding-top:10px; border-top:1px dashed #21262d; }
+  .op-foot b { color:#7d8590; font-weight:normal; }
+
+  .state { text-align:center; padding:60px 20px; color:#7d8590; }
+  .state.error { color:#f85149; }
+  .spin {
+    display:inline-block; width:20px; height:20px; border:2px solid #30363d;
+    border-top-color:#2ea043; border-radius:50%; animation:r .8s linear infinite;
+    vertical-align:middle; margin-right:8px;
+  }
+  @keyframes r { to { transform: rotate(360deg); } }
+  footer { margin-top:36px; text-align:center; color:#484f58; font-size:12px; line-height:1.9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← 返回首页</a>
+  <h1>干员分析</h1>
+  <div class="sub">
+    《三角洲行动》S11 全干员档案 · 技能拆解 / 打法思路 / 强度梯队<br>
+    梯队随版本调整而变动，仅供参考，实际强度请以当前版本与自身手感为准
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="搜索代号 / 本名 / 定位 / 技能，如 疾风、室内、烟雾">
+    <div class="tabs" id="roleTabs"></div>
+  </div>
+  <div class="toolbar">
+    <div class="grp-label" style="flex:0 0 auto;margin:0;align-self:center;">强度梯队</div>
+    <div class="tabs" id="tierTabs"></div>
+  </div>
+
+  <div class="stat" id="stat" style="display:none"></div>
+  <div id="state" class="state"><span class="spin"></span>正在读取干员档案…</div>
+  <div id="list"></div>
+
+  <footer>
+    数据来源：百度百科 / Pocket Gamer / 18183 / 游侠网 / NGA / 公开攻略站<br>
+    干员强度随赛季平衡性调整而变动，仅供参考
+  </footer>
+</div>
+
+<script>
+const URL = 'https://oiwrcxuhanvpyxehgimr.supabase.co';
+const KEY = 'sb_publishable_Rw3Awn_bOYKfgZJ6DTToVQ_Yk9SLfXp';
+
+const TIER_ORDER = {'T0':0,'T0.5':1,'T1':2,'T1.5':3,'T2':4};
+let ALL = [];
+let curRole = '全部';
+let curTier = '全部';
+
+function esc(s){
+  return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+function tierClass(t){
+  if (t === 'T0') return 'T0';
+  if (t === 'T0.5') return 'T0p5';
+  if (t === 'T1') return 'T1';
+  if (t === 'T1.5') return 'T1p5';
+  return 'T2';
+}
+
+function render(){
+  const kw = document.getElementById('search').value.trim().toLowerCase();
+
+  const rows = ALL.filter(r => {
+    if (curRole !== '全部' && r.role !== curRole) return false;
+    if (curTier !== '全部' && r.tier !== curTier) return false;
+    if (kw) {
+      const hay = [r.code, r.real_name, r.role, r.tier, r.position,
+                   r.skills, r.playstyle, r.pros, r.cons, r.weapons]
+                  .map(x => x || '').join(' ').toLowerCase();
+      if (hay.indexOf(kw) === -1) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a,b) => {
+    const ta = TIER_ORDER[a.tier] !== undefined ? TIER_ORDER[a.tier] : 9;
+    const tb = TIER_ORDER[b.tier] !== undefined ? TIER_ORDER[b.tier] : 9;
+    if (ta !== tb) return ta - tb;
+    return (a.code||'').localeCompare(b.code||'', 'zh');
+  });
+
+  const st = document.getElementById('stat');
+  st.style.display = 'flex';
+  st.innerHTML = '<span>共 <b>' + rows.length + '</b> 名干员</span>'
+    + '<span>兵种：<b>' + esc(curRole) + '</b></span>'
+    + '<span>梯队：<b>' + esc(curTier) + '</b></span>';
+
+  const list = document.getElementById('list');
+  if (!rows.length) {
+    list.innerHTML = '<div class="state">没有匹配的干员，换个关键词试试</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(r =>
+      '<div class="op">'
+    +   '<div class="op-head">'
+    +     '<span class="op-name">' + esc(r.code) + '</span>'
+    +     (r.real_name ? '<span class="op-real">' + esc(r.real_name) + '</span>' : '')
+    +     '<span class="tag role-' + esc(r.role) + '">' + esc(r.role) + '</span>'
+    +     '<span class="tier ' + tierClass(r.tier) + '">' + esc(r.tier) + '</span>'
+    +     '<span class="tag">' + esc(r.position || '') + '</span>'
+    +   '</div>'
+    +   '<div class="skills"><span class="k">技能组</span>' + esc(r.skills || '') + '</div>'
+    +   '<div class="sec"><span class="k">打法思路</span><span class="v">' + esc(r.playstyle || '') + '</span></div>'
+    +   '<div class="sec good"><span class="k">优势</span><span class="v">' + esc(r.pros || '') + '</span></div>'
+    +   '<div class="sec bad"><span class="k">短板</span><span class="v">' + esc(r.cons || '') + '</span></div>'
+    +   '<div class="op-foot">'
+    +     '<span>推荐武器：<b>' + esc(r.weapons || '-') + '</b></span>'
+    +     '<span>上手难度：<b>' + esc(r.difficulty || '-') + '</b></span>'
+    +     (r.season ? '<span>版本：<b>' + esc(r.season) + '</b></span>' : '')
+    +   '</div>'
+    + '</div>'
+  ).join('');
+}
+
+function buildTabs(boxId, values, current, onPick){
+  const box = document.getElementById(boxId);
+  box.innerHTML = values.map(v =>
+    '<span class="tab' + (v === current ? ' on' : '') + '" data-t="' + esc(v) + '">' + esc(v) + '</span>'
+  ).join('');
+  box.querySelectorAll('.tab').forEach(el => {
+    el.onclick = () => { onPick(el.getAttribute('data-t')); };
+  });
+}
+
+function rebuild(){
+  const roles = ['全部'];
+  const tiers = ['全部'];
+  ALL.forEach(r => {
+    if (r.role && roles.indexOf(r.role) === -1) roles.push(r.role);
+    if (r.tier && tiers.indexOf(r.tier) === -1) tiers.push(r.tier);
+  });
+  tiers.sort((a,b) => {
+    if (a === '全部') return -1;
+    if (b === '全部') return 1;
+    return (TIER_ORDER[a]||9) - (TIER_ORDER[b]||9);
+  });
+  buildTabs('roleTabs', roles, curRole, v => { curRole = v; rebuild(); render(); });
+  buildTabs('tierTabs', tiers, curTier, v => { curTier = v; rebuild(); render(); });
+}
+
+(async function(){
+  try {
+    const res = await fetch(URL + '/rest/v1/operators?select=*', {
+      headers: { apikey: KEY, Authorization: 'Bearer ' + KEY },
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    ALL = await res.json();
+    if (!ALL.length) {
+      document.getElementById('state').innerHTML = '暂无干员数据';
+      return;
+    }
+    document.getElementById('state').style.display = 'none';
+    rebuild();
+    render();
+  } catch(e) {
+    document.getElementById('state').className = 'state error';
+    document.getElementById('state').textContent = '读取失败：' + e.message;
+  }
+})();
+
+document.getElementById('search').addEventListener('input', render);
+</script>
+</body>
+</html>

@@ -244,38 +244,31 @@ def extract_codes(words):
 
 
 def upload(results, date_str):
-    import requests
-    cfg = load_json(CONFIG_PATH, {})
-    url = (cfg.get("url") or "").rstrip("/")
-    key = cfg.get("key") or ""
-    if not url or not key:
-        log("未配置 supabase_config.json")
-        return False
-    code_str = "|".join(f"{m}:{results[m]}" for m in MAPS)
-    api = f"{url}/rest/v1/daily_codes"
-    payload = [{"code_date": date_str, "code_value": code_str,
-                "verified": True, "source": "wegame-ocr-auto"}]
-    h = {"apikey": key, "Authorization": f"Bearer {key}",
-         "Content-Type": "application/json",
-         "Prefer": "resolution=merge-duplicates,on_conflict=code_date,return=minimal"}
+    import json, requests
+    cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'supabase_config.json'), encoding='utf-8'))
+    base = cfg['url'].rstrip('/') + '/rest/v1/daily_codes'
+    headers = {
+        'apikey': cfg['key'],
+        'Authorization': 'Bearer ' + cfg['key'],
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+    }
+    value = '|'.join('%s:%s' % (k, v) for k, v in (results.items() if isinstance(results, dict) else results))
+    payload = [{
+        'code_date': date_str,
+        'code_value': value,
+        'source': 'wegame-ocr-auto',
+    }]
     try:
-        r = requests.post(api, headers=h, json=payload, timeout=25)
+        r = requests.post(base + '?on_conflict=code_date', headers=headers, json=payload, timeout=30)
         if r.status_code in (200, 201, 204):
-            log(f"上传成功: {code_str}")
+            log('上传成功(upsert) %s -> %s' % (date_str, value))
             return True
-        log(f"POST {r.status_code}: {r.text[:150]}")
-        r2 = requests.patch(f"{api}?code_date=eq.{date_str}",
-                            headers={"apikey": key, "Authorization": f"Bearer {key}",
-                                     "Content-Type": "application/json",
-                                     "Prefer": "return=minimal"},
-                            json=payload[0], timeout=25)
-        if r2.status_code in (200, 201, 204):
-            log(f"更新成功: {code_str}")
-            return True
-        log(f"PATCH {r2.status_code}: {r2.text[:150]}")
+        log('上传失败 HTTP %s %s' % (r.status_code, r.text[:200]))
+        return False
     except Exception as e:
-        log(f"上传异常: {type(e).__name__}: {e}")
-    return False
+        log('上传异常 %s' % e)
+        return False
 
 
 def main():
